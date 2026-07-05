@@ -1,3 +1,4 @@
 # TrustRAGBench
 
-A Retrieval-Augmented Generation (RAG) system for research paper Q&A, built as part of a DRDO internship project. Includes retrieval evaluation, hallucination/faithfulness evaluation, and an interactive dashboard.
+A research-grade Retrieval-Augmented Generation (RAG) system for academic paper Q&A. 
+Includes retrieval evaluation, hallucination/faithfulness evaluation, and an interactive dashboard.
