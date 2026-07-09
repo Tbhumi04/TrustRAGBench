@@ -67,7 +67,7 @@ def ask(question):
     print('='*60)
 
     # Retrieve top 3 relevant chunks
-    results = vectorstore.similarity_search(question, k=3)
+    results = vectorstore.similarity_search(question, k=6)
 
     # Build context string with page citations
     context = ""
