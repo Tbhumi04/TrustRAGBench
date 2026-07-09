@@ -5,6 +5,7 @@ Flow: Question -> Retrieve chunks -> Send to LLM -> Cited answer
 """
 
 import os
+import glob
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -19,11 +20,18 @@ groq_api_key = os.getenv("GROQ_API_KEY")
 if not groq_api_key:
     raise ValueError("GROQ_API_KEY not found in .env file. Please check your .env file.")
 
-# ---------- STEP 1: Load PDF ----------
-print("Step 1: Loading PDF...")
-loader = PyPDFLoader("data/self_rag_paper.pdf")
-documents = loader.load()
-print(f"Loaded {len(documents)} pages.\n")
+
+# ---------- STEP 1: Load All PDFs ----------
+import glob
+print("Step 1: Loading all PDFs...")
+pdf_files = glob.glob("data/*.pdf")
+documents = []
+for pdf_path in pdf_files:
+    loader = PyPDFLoader(pdf_path)
+    docs = loader.load()
+    documents.extend(docs)
+    print(f"  Loaded: {pdf_path} ({len(docs)} pages)")
+print(f"\nTotal pages loaded: {len(documents)}\n")
 
 # ---------- STEP 2: Chunk ----------
 print("Step 2: Chunking...")
