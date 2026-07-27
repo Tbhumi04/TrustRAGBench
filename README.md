@@ -50,3 +50,17 @@ A research-grade Retrieval-Augmented Generation (RAG) system for academic paper 
 - **Version Control:** Git/GitHub
 
 ## Project Structure
+TrustRAGBench/
+├── data/ # Indexed research papers (10 PDFs)
+├── chroma_db/ # Persisted vector store (chunk=500)
+├── chroma_db_chunk250/ # Vector store (chunk=250)
+├── chroma_db_chunk1000/ # Vector store (chunk=1000)
+├── app.py # Streamlit dashboard
+├── rag_pipeline.py # Baseline RAG pipeline
+├── rag_with_llm.py # RAG + LLM answer generation
+├── evaluation.py # Retrieval evaluation (Precision@k, Recall@k, MRR)
+├── ragas_eval.py # Faithfulness evaluation (LLM-as-judge)
+├── config_comparison.py # Multi-config comparison
+├── safety_eval.py # Safety evaluation
+├── requirements.txt # Python dependencies
+└── .gitignore
