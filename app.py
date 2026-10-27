@@ -1,10 +1,11 @@
-"""
+﻿"""
 app.py
 TrustRAGBench — Interactive RAG Dashboard
 Streamlit web interface for research paper Q&A with evaluation scores.
 """
 
 import os
+import re
 import glob
 import streamlit as st
 from dotenv import load_dotenv
@@ -24,10 +25,30 @@ st.set_page_config(
     layout="wide"
 )
 
+# ---------- API KEY (Streamlit Secrets on cloud, .env locally) ----------
+def get_groq_key():
+    try:
+        key = st.secrets["GROQ_API_KEY"]
+        if key:
+            return key
+    except Exception:
+        pass
+    return os.getenv("GROQ_API_KEY")
+
+GROQ_API_KEY = get_groq_key()
+LLM_MODEL = "openai/gpt-oss-20b"
+
 # ---------- HEADER ----------
 st.title("📚 TrustRAGBench")
 st.caption("AI Research Paper Q&A · Retrieval-Augmented Generation with Evaluation")
 st.divider()
+
+if not GROQ_API_KEY:
+    st.error(
+        "GROQ_API_KEY not found. Add it in Streamlit Cloud → Manage app → "
+        "Settings → Secrets, or in your local .env file."
+    )
+    st.stop()
 
 # ---------- SIDEBAR CONFIG ----------
 st.sidebar.header("⚙️ Configuration")
@@ -79,9 +100,10 @@ def load_embedding_model():
 @st.cache_resource
 def load_llm():
     return ChatGroq(
-        api_key=os.getenv("GROQ_API_KEY"),
-        model_name="llama-3.1-8b-instant",
-        temperature=0.2
+        api_key=GROQ_API_KEY,
+        model=LLM_MODEL,
+        temperature=0.2,
+        reasoning_effort="low"
     )
 
 @st.cache_resource
@@ -110,16 +132,19 @@ def build_vectorstore(_docs, chunk_size, overlap):
     return vectorstore, len(chunks)
 
 # ---------- SCORE FUNCTIONS ----------
+def parse_score(text):
+    match = re.search(r"\d*\.?\d+", text or "")
+    if not match:
+        return 0.5
+    return min(max(float(match.group()), 0.0), 1.0)
+
 def score_faithfulness(answer, context, llm):
     prompt = f"""Context: {context[:2000]}
 Answer: {answer}
 Is every claim in the answer supported by the context?
 Reply ONLY with a number 0.0 to 1.0. Nothing else."""
     response = llm.invoke([HumanMessage(content=prompt)])
-    try:
-        return min(max(float(response.content.strip()), 0.0), 1.0)
-    except:
-        return 0.5
+    return parse_score(response.content)
 
 def score_relevancy(question, answer, llm):
     prompt = f"""Question: {question}
@@ -127,10 +152,7 @@ Answer: {answer}
 How well does this answer address the question?
 Reply ONLY with a number 0.0 to 1.0. Nothing else."""
     response = llm.invoke([HumanMessage(content=prompt)])
-    try:
-        return min(max(float(response.content.strip()), 0.0), 1.0)
-    except:
-        return 0.5
+    return parse_score(response.content)
 
 # ---------- LOAD EVERYTHING ----------
 with st.spinner("Loading models and documents..."):
@@ -145,7 +167,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Papers indexed", "10", "257 pages")
 col2.metric("Chunks created", f"{num_chunks:,}", f"chunk size = {chunk_size}")
 col3.metric("Embedding model", "MiniLM-L6-v2", "384 dimensions")
-col4.metric("LLM", "LLaMA 3.1 8B", "via Groq API")
+col4.metric("LLM", "GPT-OSS 20B", "via Groq API")
 
 st.divider()
 
@@ -171,8 +193,9 @@ with tab1:
             context += f"\n[Source {i} - {source} - Page {page}]:\n{doc.page_content}\n"
 
         # Generate answer
-        with st.spinner("Generating answer..."):
-            system_prompt = """You are an expert AI research assistant helping students and researchers understand academic papers.
+        try:
+            with st.spinner("Generating answer..."):
+                system_prompt = """You are an expert AI research assistant helping students and researchers understand academic papers.
 Answer using ONLY the provided context from the indexed research papers.
 Write in clear, well-structured paragraphs that are easy to understand.
 Explain technical terms briefly when you use them.
@@ -182,18 +205,21 @@ If the question is asking about a person, place, event, or topic NOT directly di
 If the retrieved context only mentions the topic as a passing example or name, treat it as outside scope.
 Never fabricate information or add details not present in the context."""
 
-            user_prompt = f"Context:\n{context}\n\nQuestion: {question}\n\nProvide a cited answer."
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt)
-            ]
-            response = llm.invoke(messages)
-            answer = response.content
+                user_prompt = f"Context:\n{context}\n\nQuestion: {question}\n\nProvide a cited answer."
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt)
+                ]
+                response = llm.invoke(messages)
+                answer = response.content
 
-        # Score
-        with st.spinner("Evaluating answer quality..."):
-            f_score = score_faithfulness(answer, context, llm)
-            r_score = score_relevancy(question, answer, llm)
+            # Score
+            with st.spinner("Evaluating answer quality..."):
+                f_score = score_faithfulness(answer, context, llm)
+                r_score = score_relevancy(question, answer, llm)
+        except Exception as e:
+            st.error(f"LLM request failed: {type(e).__name__}. Check your GROQ_API_KEY secret and model name.")
+            st.stop()
 
         # Display answer
         st.subheader("Answer")
